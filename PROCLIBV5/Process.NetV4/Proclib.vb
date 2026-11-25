@@ -9332,7 +9332,14 @@ errmsg:
             If Not db.Execute("Update A Set pStatus='C', AdjustableF=" & IIf(AdjustableF And AType <> "A", "1", "0") & ", Source='" & Source & "', BizMapID='" & BizMapID & "', Ujroh=" & tovalSF(Ujroh) & ", LUserID='" & db_user & "', LDate='" & Format(Today.Date, "MM/DD/YYYY") & "', LTime='" & Time() & "' from Acceptance A Where pStatus<>'C' and A.ANO=" & ANO) Then GoTo errmsg
         End If
 
+        If tPrefix = "" Then
+            ' Automatically to Reinsurance
+            If AType <> "A" And AType <> "C" Then
+                If Not Check_RateCon(ANO) Then GoTo errmsg
+            End If
 
+            
+        End If
 
         Premium_Calc = True
         Exit Function
@@ -13090,7 +13097,6 @@ errmsg:
             If LANO <> -1 Then
                 If OpenFlag Then
                     ' Alternate Payor
-                    rs = db.OpenQueryDef("QAPayor", adOpenForwardonly, ANO)
                     If rs.Eof Then
                         rs = db.OpenQueryDef("QPayor", adOpenForwardonly, LANO)
                     End If

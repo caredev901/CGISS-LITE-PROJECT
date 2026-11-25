@@ -6139,6 +6139,14 @@ errmsg:
             End If
 
 
+            ' Update Banker Clause
+            If Trim(BankersClause) <> "" Then
+                SQL = "Update AccCla Set Description=replace(cast(Description as VARCHAR(MAX)),'<<BANKERS CLAUSE>>','" & BankersClause & "'), Description_1=replace(cast(Description_1 as VARCHAR(MAX)),'<<BANKERS CLAUSE>>','" & BankersClause & "') from AccCla Where ANO=" & ANO
+                If Not db.Execute(SQL) Then
+                    StrMsg = "Update Banker Clause Failed !" & db.ErrDesc & vbCrLf
+                    Throw New Exception(StrMsg)
+                End If
+            End If
 
 
             Dim EMethod As String = tostr(GetFieldValue(FBuffer(GetFieldIndex("EMethod", FIndex))))
@@ -6508,7 +6516,10 @@ errmsg:
                         db.Var_db_user = AUserID
                         db.Var_db_User_Type = IIf(db.GetPrivileges("ALLOWALLPRIVILEGESINFORCE"), "SUPERVISOR", db_user_type)
 
-
+                        If Not PreInforceConditionsOK(IIf(SType = "M" And Not MasterF, LANO, ANO), ADate, PolicyNo, BackDatedF, True, False, False, StrMsg) Then
+                            StrMsg = "Process Inforce Failed !" & vbCrLf & StrMsg & vbCrLf
+                            Throw New Exception(StrMsg)
+                        End If
 
                         If MasterF Or SType = "M" Then
                             If MasterF Then

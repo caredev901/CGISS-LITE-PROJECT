@@ -430,6 +430,12 @@ Public Class Proclib
             Case "CANCEL_VOUCHER"
                 Call_Process_Execute = Cancel_Voucher(tostr(Param1), toval(Param2))
                 If Call_Process_Execute = True Then Process_OK = True
+            Case "GENERATE_ADMLINK_PREMIUM"
+                Call_Process_Execute = Generate_Admlink_Premium(todate(Param1), tostr(Param2))
+                If Call_Process_Execute = True Then Process_OK = True
+            Case "GENERATE_VOUCHER"
+                Call_Process_Execute = Generate_Voucher(todate(Param1), tostr(Param2))
+                If Call_Process_Execute = True Then Process_OK = True
         End Select
 
         If Process_OK Then
@@ -14843,6 +14849,921 @@ errmsg:
 errmsg:
         StrMsg = StrError(StrMsg)
         Production_To_Adm = False
+    End Function
+     Private Function Generate_Admlink_Premium(AsAt As Date, COB As String) As Boolean
+        Try
+            Dim rs As RemoteSet
+            Dim rsAdm As RemoteSet
+
+            Dim PID As String
+            Dim PShortName As String
+            Dim PCode As String
+            Dim pRCode As String
+            Dim pSegment As String
+            Dim pPolicyNo As String
+            Dim PType As String
+            Dim pCCY As String
+            Dim PRefNo As String
+            Dim pADate As Date
+            Dim pBillDate As Date
+            Dim PDocNo As String
+            Dim pBranch As String
+            Dim pSubject As String
+            Dim pSource As String
+            Dim pCT As String
+            Dim SDate As Date
+            Dim EDate As Date
+            Dim AdmNo As Long
+            Dim pGracePeriod As Integer
+            Dim BatchNo As String
+            Dim ISType As String
+            Dim WPC As Integer
+            Dim AType As String
+            Dim EMethod As String
+            Dim PolicyType As String
+
+            Dim TaxTableF As Boolean
+            Dim NoRefundF As Integer
+            Dim VATSubsidiesF As Boolean
+            Dim TaxType As String
+            Dim KPPID As String
+            Dim VatBusinessF As Boolean
+
+            Dim BankAccount As String
+            Dim BankName As String
+            Dim Bank As String
+            Dim BankBranch As String
+            Dim AccountNo As String
+
+            Dim SMonth As Integer
+            Dim SYear As Integer
+            Dim EMonth As Integer
+            Dim EYear As Integer
+            Dim minAcNo As Long
+            Dim maxAcNo As Long
+            Dim LockedKey As String = ""
+
+            rs = db.OpenRemoteSet("Select TaxTableF, VATSubsidiesF from SysTab")
+            TaxTableF = toval(rs.fields("TaxTableF"))
+            VATSubsidiesF = toval(rs.fields("VATSubsidiesF"))
+
+            LockedKey = "Generate_Admlink_Premium_" & COB
+            If Not db.GetLockedObject(LockedKey) Then Throw New Exception(db.ErrDesc)
+
+            rs = db.OpenQueryDef("QGenerate_Admlink_Premium", adOpenForwardonly, AsAt, COB)
+            If Not rs.Eof Then
+
+                rsAdm = db.OpenRemoteSet("Select * from Admlink Where 1<>1")
+                Do While Not rs.Eof
+                    pGracePeriod = toval(rs.fields("Grace"))
+                    WPC = toval(rs.fields("WPC"))
+                    pSource = tostr(rs.fields("Source"))
+                    NoRefundF = toval(rs.fields("NoRefundF"))
+                    PolicyType = toval(rs.fields("PolicyType"))
+                    ISType = toval(rs.fields("ISType"))
+                    PID = tostr(rs.fields("ID"))
+                    PShortName = tostr(rs.fields("PShortName"))
+                    pCCY = tostr(rs.fields("Currency"))
+                    pADate = todate(rs.fields("ADate"))
+                    pBillDate = todate(rs.fields("BillDate"))
+                    pPolicyNo = tostr(rs.fields("PolicyNo"))
+                    PDocNo = pPolicyNo
+                    PRefNo = tostr(rs.fields("RefNo"))
+                    pBranch = tostr(rs.fields("Branch"))
+                    pCT = tostr(rs.fields("CT"))
+                    pSubject = tostr(rs.fields("Subject"))
+                    PCode = tostr(rs.fields("TOC"))
+                    pRCode = tostr(rs.fields("RCODE"))
+                    SDate = todate(rs.fields("SDate"))
+                    EDate = todate(rs.fields("EDate"))
+                    BatchNo = tostr(rs.fields("RCODE"))
+                    AType = tostr(rs.fields("AType"))
+                    EMethod = tostr(rs.fields("EMethod"))
+                    pSegment = tostr(rs.fields("Segment"))
+                    PType = tostr(rs.fields("Type"))
+                    SMonth = toval(rs.fields("SMonth"))
+                    SYear = toval(rs.fields("SYear"))
+                    EMonth = toval(rs.fields("EMonth"))
+                    EYear = toval(rs.fields("EYear"))
+                    minAcNo = toval(rs.fields("minAcNo"))
+                    maxAcNo = toval(rs.fields("maxAcNo"))
+
+                    Dim rsT As RemoteSet
+                    rsT = db.OpenRemoteSet("Select KPPID from Branch Where Branch='" & pBranch & "'")
+                    KPPID = tostr(rsT.fields("KPPID"))
+
+                    rsT = db.OpenRemoteSet("Select VatBusinessF from TOC Where TOC='" & PCode & "'")
+                    VatBusinessF = toval(rsT.fields("VatBusinessF"))
+
+                    rsT = db.OpenRemoteSet("Select TaxType.MTaxType from Profile P Left Join TaxType on (TaxType.TaxType=P.TaxType) Where P.ID='" & PID & "'")
+                    TaxType = tostr(rsT.fields("mTaxType"))
+
+                    Get_BankAccount(PID, pCCY, Bank, BankBranch, AccountNo, BankAccount, BankName)
+                    rsAdm.fields("Bank") = Bank
+                    rsAdm.fields("BankBranch") = BankBranch
+                    rsAdm.fields("AccountNo") = AccountNo
+                    rsAdm.fields("BankAccount") = BankAccount
+                    rsAdm.fields("BankName") = BankName
+                    pSubject = "Premium"
+
+                    Dim MO As String = tostr(rs.fields("MO"))
+                    Dim AID As String = tostr(rs.fields("AID"))
+                    Dim CRefNo As String = tostr(rs.fields("CRefNo"))
+                    Dim ASource As String = tostr(rs.fields("MSCode"))
+                    Dim MSCode As String = tostr(rs.fields("MSCode"))
+                    Dim BizmapID As String = tostr(rs.fields("BizmapID"))
+                    AdmNo = db.GetIdentity("Admlink") + 1
+
+
+                    rsAdm.AddNew()
+                    rsAdm.fields("AdmNo") = AdmNo
+                    rsAdm.fields("ID") = PID
+                    rsAdm.fields("CODE") = PCode
+                    rsAdm.fields("TYPE") = PType
+                    rsAdm.fields("Currency") = pCCY
+                    rsAdm.fields("Subject") = pSubject
+                    rsAdm.fields("Branch") = pBranch
+                    rsAdm.fields("RefNo") = PRefNo
+                    rsAdm.fields("DocNo") = PDocNo
+                    rsAdm.fields("Date") = pADate
+                    rsAdm.fields("BillDate") = pBillDate
+                    rsAdm.fields("Segment") = pSegment
+                    rsAdm.fields("A_PolicyNo") = pPolicyNo
+                    rsAdm.fields("A_SDate") = SDate
+                    rsAdm.fields("A_EDate") = EDate
+                    rsAdm.fields("RCode") = pRCode
+                    rsAdm.fields("ASource") = ASource
+                    rsAdm.fields("CT") = pCT
+                    rsAdm.fields("Source") = pSource
+                    rsAdm.fields("MSCode") = MSCode
+                    rsAdm.fields("BatchNo") = BatchNo
+                    rsAdm.fields("ISType") = ISType
+                    rsAdm.fields("WPC") = WPC
+                    rsAdm.fields("A_ID") = AID
+                    rsAdm.fields("A_MO") = MO
+                    rsAdm.fields("A_RefNo") = CRefNo
+                    rsAdm.fields("BizMapID") = BizmapID
+                    rsAdm.fields("Extra_1") = ""
+                    rsAdm.fields("Extra_3") = "New"
+                    rsAdm.fields("Extra_4") = IIf(AType = "N", "New", IIf(AType = "C", IIf(EMethod = "A", "Cancel All", "Cancellation"), IIf(AType = "E", "Endorsement", "Adjustment")))
+
+                    rsAdm.fields("Remarks") = tostr(rs.fields("Remarks"))
+                    rsAdm.fields("Statement") = 0
+                    rsAdm.fields("VoucherF") = 0
+                    rsAdm.fields("Voucher") = ""
+
+                    Dim pTAmount As Double
+                    pTAmount = toval(rsAdm.fields("Amount_1")) + toval(rsAdm.fields("Amount_2")) + toval(rsAdm.fields("Amount_3")) + toval(rsAdm.fields("Amount_4")) + toval(rsAdm.fields("Amount_5")) + toval(rsAdm.fields("Amount_6")) + toval(rsAdm.fields("Amount_7")) + toval(rsAdm.fields("Amount_8")) + toval(rsAdm.fields("Amount_9")) + toval(rsAdm.fields("Amount_10")) + toval(rsAdm.fields("Amount_15")) + toval(rsAdm.fields("Amount_16")) + toval(rsAdm.fields("Amount_19")) + toval(rsAdm.fields("Amount_20"))
+
+                    ' Case "P"    ' Premium
+                    rsAdm.fields("Amount_1") = toval(rsAdm.fields("Amount_1")) + toval(rs.fields("Amount_1"))
+                    ' Case "C"    ' Commission
+                    rsAdm.fields("Amount_2") = toval(rsAdm.fields("Amount_2")) + toval(rs.fields("Amount_2"))
+                    ' Case "F"    ' Fee
+                    rsAdm.fields("Amount_3") = toval(rsAdm.fields("Amount_3")) + toval(rs.fields("Amount_3"))
+                    ' Case "D"    ' Duty
+                    rsAdm.fields("Amount_4") = toval(rsAdm.fields("Amount_4")) + toval(rs.fields("Amount_4"))
+                    ' Case "O"    ' Discount/Acquisition Cost
+                    rsAdm.fields("Amount_5") = toval(rsAdm.fields("Amount_5")) + toval(rs.fields("Amount_5"))
+                    ' Case "A"    ' Claim Amount
+                    rsAdm.fields("Amount_6") = toval(rsAdm.fields("Amount_6")) + toval(rs.fields("Amount_6"))
+                    ' Case "O1"    ' Premium Adjustment
+                    rsAdm.fields("Amount_7") = toval(rsAdm.fields("Amount_7")) + toval(rs.fields("Amount_7"))
+                    ' Case "O2"    ' Profit Sharing
+                    rsAdm.fields("Amount_8") = toval(rsAdm.fields("Amount_8")) + toval(rs.fields("Amount_8"))
+                    ' Case "C1"    ' Overriding Commission
+                    rsAdm.fields("Amount_9") = toval(rsAdm.fields("Amount_9")) + toval(rs.fields("Amount_9"))
+                    ' Case "R"    ' Subrogation
+                    rsAdm.fields("Amount_10") = toval(rsAdm.fields("Amount_10")) + toval(rs.fields("Amount_10"))
+                    ' Case "F3/D3"    ' Others Fee / Stamp Duty #3
+                    rsAdm.fields("Amount_12") = toval(rsAdm.fields("Amount_12")) + toval(rs.fields("Amount_12"))
+                    ' Case "V"    ' VAT
+                    rsAdm.fields("Amount_13") = toval(rsAdm.fields("Amount_13")) + toval(rs.fields("Amount_13"))
+                    ' Case "T"    ' Tax
+                    rsAdm.fields("Amount_14") = toval(rsAdm.fields("Amount_14")) + toval(rs.fields("Amount_14"))
+                    ' Case "F1/D1"    ' Others Fee / Stamp Duty #1
+                    rsAdm.fields("Amount_15") = toval(rsAdm.fields("Amount_15")) + toval(rs.fields("Amount_15"))
+                    ' Case "F2/D2"    ' Others Fee / Stamp Duty #2
+                    rsAdm.fields("Amount_16") = toval(rsAdm.fields("Amount_16")) + toval(rs.fields("Amount_16"))
+                    ' Case "J"    ' Deposit/Reserve/Advance
+                    rsAdm.fields("Amount_19") = toval(rsAdm.fields("Amount_19")) + toval(rs.fields("Amount_19"))
+                    ' Case "U"    ' Ujroh Fee
+                    rsAdm.fields("Amount_20") = toval(rsAdm.fields("Amount_20")) + toval(rs.fields("Amount_20"))
+
+                    rsAdm.fields("Amount") = toval(rsAdm.fields("Amount_1")) + toval(rsAdm.fields("Amount_2")) + toval(rsAdm.fields("Amount_3")) + toval(rsAdm.fields("Amount_4")) + toval(rsAdm.fields("Amount_5")) + toval(rsAdm.fields("Amount_6")) + toval(rsAdm.fields("Amount_7")) + toval(rsAdm.fields("Amount_8")) + toval(rsAdm.fields("Amount_9")) + toval(rsAdm.fields("Amount_10")) + toval(rsAdm.fields("Amount_12")) + toval(rsAdm.fields("Amount_15")) + toval(rsAdm.fields("Amount_16")) + toval(rsAdm.fields("Amount_19")) + toval(rsAdm.fields("Amount_20"))
+                    rsAdm.fields("LUserID") = db_user
+                    rsAdm.fields("LDate") = Today.Date
+                    rsAdm.fields("LTime") = Time()
+                    rsAdm.fields("Bank") = Bank
+                    rsAdm.fields("BankBranch") = BankBranch
+                    rsAdm.fields("AccountNo") = AccountNo
+                    rsAdm.fields("BankAccount") = BankAccount
+                    rsAdm.fields("BankName") = BankName
+
+                    Dim TAmount As Double
+                    Dim Amount As Double
+                    Dim Rvalue As Double = 0
+
+                    TAmount = toval(rsAdm.fields("Amount_1")) + toval(rsAdm.fields("Amount_2")) + toval(rsAdm.fields("Amount_3")) + toval(rsAdm.fields("Amount_4")) + toval(rsAdm.fields("Amount_5")) + toval(rsAdm.fields("Amount_6")) + toval(rsAdm.fields("Amount_7")) + toval(rsAdm.fields("Amount_9")) + toval(rsAdm.fields("Amount_10")) + toval(rsAdm.fields("Amount_15")) + toval(rsAdm.fields("Amount_16")) + toval(rsAdm.fields("Amount_19")) + toval(rsAdm.fields("Amount_20"))
+                    Amount = RoundCCY(TAmount, pCCY, Rvalue) - TAmount
+                    rsAdm.fields("Amount_11") = Amount
+                    rsAdm.fields("Amount_12") = 0
+
+                    Dim VAT As Double = 0
+                    Dim TAX As Double = 0
+                    Dim Branch_VAT As Double = 0
+                    Dim TOC_VAT As Double = 0
+                    Dim PNominal_VAT As Double = 0
+                    Dim PNominal_Tax As Double = 0
+                    Dim pTaxTableF As Boolean = False
+                    Dim BVATPCT As Double = 0
+                    Dim TVATPCT As Double = 0
+
+                    ' VAT and TAX not Applied for Inward Treaty
+                    If PType <> "IT" And PType <> "IX" Then
+
+                        pTaxTableF = TaxTableF
+                        If InStr("BBBABCBPBD", PType) <> 0 Then
+                            PNominal_VAT = (toval(rsAdm.fields("Amount_2")) + toval(rsAdm.fields("Amount_5"))) + Amount
+                        ElseIf PType = "OP" Or PType = "OR" Then
+                            PNominal_VAT = (toval(rsAdm.fields("Amount_3")) + toval(rsAdm.fields("Amount_12")) + toval(rsAdm.fields("Amount_15")) + toval(rsAdm.fields("Amount_16"))) + Amount
+                        ElseIf InStr("DIICCFJPBO", PType) <> 0 Then
+                            PNominal_VAT = (toval(rsAdm.fields("Amount_1")) + toval(rsAdm.fields("Amount_2")) + toval(rsAdm.fields("Amount_5")) + toval(rsAdm.fields("Amount_19")) + toval(rsAdm.fields("Amount_20"))) + Amount
+                        Else
+                            PNominal_VAT = (toval(rsAdm.fields("Amount_1")) + toval(rsAdm.fields("Amount_2")) + toval(rsAdm.fields("Amount_5")) + toval(rsAdm.fields("Amount_6")) + toval(rsAdm.fields("Amount_7")) + toval(rsAdm.fields("Amount_9")) + toval(rsAdm.fields("Amount_10")) + toval(rsAdm.fields("Amount_19")) + toval(rsAdm.fields("Amount_20"))) + Amount
+                        End If
+
+                        If (PType = "FO" Or PType = "FP" Or PType = "FX" Or PType = "QS" Or PType = "QP" Or PType = "S1" Or PType = "S2" Or PType = "S3" Or PType = "AF" Or PType = "IR" Or PType = "IT" Or PType = "IX") Then
+                            Select Case TaxType.ToUpper
+                                Case "PASAL21", "PASAL23", "PASAL4"
+                                    ' Excluding Premium
+                                    PNominal_Tax = (toval(rsAdm.fields("Amount_2")) + toval(rsAdm.fields("Amount_3")) + toval(rsAdm.fields("Amount_5")) + toval(rsAdm.fields("Amount_6")) + toval(rsAdm.fields("Amount_7")) + toval(rsAdm.fields("Amount_9")) + toval(rsAdm.fields("Amount_10")) + toval(rsAdm.fields("Amount_15")) + toval(rsAdm.fields("Amount_16")) + toval(rsAdm.fields("Amount_19")) + toval(rsAdm.fields("Amount_20")))
+                                Case Else
+                                    ' Excluding Commission 
+                                    PNominal_Tax = (toval(rsAdm.fields("Amount_1")) + toval(rsAdm.fields("Amount_3")) + toval(rsAdm.fields("Amount_5")) + toval(rsAdm.fields("Amount_6")) + toval(rsAdm.fields("Amount_7")) + toval(rsAdm.fields("Amount_9")) + toval(rsAdm.fields("Amount_10")) + toval(rsAdm.fields("Amount_15")) + toval(rsAdm.fields("Amount_16")) + toval(rsAdm.fields("Amount_19")) + toval(rsAdm.fields("Amount_20"))) + Amount
+                            End Select
+                        Else
+                            If InStr("BBBABCBPBD", PType) <> 0 Then
+                                PNominal_Tax = (toval(rsAdm.fields("Amount_2")) + toval(rsAdm.fields("Amount_5"))) + Amount
+                            ElseIf PType = "OP" Or PType = "OR" Then
+                                PNominal_Tax = (toval(rsAdm.fields("Amount_3")) + toval(rsAdm.fields("Amount_12")) + toval(rsAdm.fields("Amount_15")) + toval(rsAdm.fields("Amount_16"))) + Amount
+                            ElseIf InStr("DIICCFJPBO", PType) <> 0 Then
+                                PNominal_Tax = (toval(rsAdm.fields("Amount_1")) + toval(rsAdm.fields("Amount_2")) + toval(rsAdm.fields("Amount_5")) + toval(rsAdm.fields("Amount_19")) + toval(rsAdm.fields("Amount_20"))) + Amount
+                            Else
+                                PNominal_Tax = (toval(rsAdm.fields("Amount_1")) + toval(rsAdm.fields("Amount_2")) + toval(rsAdm.fields("Amount_5")) + toval(rsAdm.fields("Amount_6")) + toval(rsAdm.fields("Amount_7")) + toval(rsAdm.fields("Amount_9")) + toval(rsAdm.fields("Amount_10")) + toval(rsAdm.fields("Amount_19")) + toval(rsAdm.fields("Amount_20"))) + Amount
+                            End If
+                        End If
+
+                        Dim pVATSubsidiesF As Boolean = VATSubsidiesF
+                        Dim pTAXSubsidiesF As Boolean = False
+                        Dim VATsubsidies As Double = 0
+                        Dim TAXsubsidies As Double = 0
+                        If Not Calculate_VAT_TAX(pTaxTableF, PID, PType, pADate, pCCY, PNominal_VAT, PNominal_Tax, VAT, TAX, TaxType, BVATPCT, TVATPCT, Branch_VAT, TOC_VAT, pVATSubsidiesF, pTAXSubsidiesF, KPPID) Then
+                            StrMsg = "Failed in Calculating Vat/Tax !"
+                            Throw New Exception(StrMsg)
+                        End If
+
+                        ' PASAL21 and Not Commission Net To Premium (NoRefundF=7)
+                        If Not (TaxType = "PASAL21" And NoRefundF <> 7 And NoRefundF <> 9 And NoRefundF <> 10) Then
+                            pTaxTableF = False
+                        End If
+
+                        ' NoRefundf : 8 : No Add Refund Vat, 10 : no Add Refund VAT and TAX
+                        If NoRefundF <> 8 And NoRefundF <> 10 And NoRefundF <> 14 Then
+                            If ((PType = "BB" Or PType = "BA" Or PType = "BC" Or PType = "BP" Or PType = "BD" Or PType = "OP" Or PType = "OR") Or (InStr("BBBABOBCBPBDOPORDIICCFJP", PType) = 0 And VatBusinessF)) Then
+                                rsAdm.fields("PNominal_VAT") = PNominal_VAT
+                                rsAdm.fields("Amount_13") = VAT
+                                If (PType = "BB" Or PType = "BA") AndAlso PNominal_VAT <> 0 AndAlso VAT / PNominal_VAT < 0 AndAlso pVATSubsidiesF Then
+                                    VATsubsidies = -VAT
+                                End If
+                            End If
+                        End If
+
+                        ' NoRefundf : 9 : No Add Refund Tax, 10 : no Add Refund VAT and TAX
+                        If (NoRefundF <> 9 And NoRefundF <> 10) AndAlso (((PType = "BB" Or PType = "BA" Or PType = "BC" Or PType = "BP" Or PType = "BD" Or PType = "OP" Or PType = "OR") Or (((InStr("BBBABCBPBDOPOR", PType) = 0) And (TAX <> 0))))) Then
+                            rsAdm.fields("PNominal_Tax") = PNominal_Tax
+                            rsAdm.fields("Amount_14") = TAX
+                            If (PType = "BB" Or PType = "BA") AndAlso PNominal_Tax <> 0 AndAlso TAX / PNominal_Tax < 0 AndAlso pTAXSubsidiesF Then
+                                TAXsubsidies = -TAX
+                            End If
+                        Else
+                            rsAdm.fields("PNominal_Tax") = 0
+                            rsAdm.fields("Amount_14") = 0
+                        End If
+
+                        rsAdm.fields("Amount_8") = VATsubsidies + TAXsubsidies
+                    Else
+                        ' From Brokerage Fee
+                        PNominal_VAT = (toval(rsAdm.fields("Amount_3")))
+                        PNominal_Tax = (toval(rsAdm.fields("Amount_3")))
+                        rsAdm.fields("PNominal_VAT") = PNominal_VAT
+                        rsAdm.fields("PNominal_Tax") = PNominal_Tax
+                    End If
+                    rsAdm.fields("Amount") = TAmount + toval(rsAdm.fields("Amount_8")) + toval(rsAdm.fields("Amount_11")) + toval(rsAdm.fields("Amount_12")) + toval(rsAdm.fields("Amount_13")) + toval(rsAdm.fields("Amount_14")) + toval(rsAdm.fields("Amount_17")) + toval(rsAdm.fields("Amount_18"))
+                    If Not rsAdm.Update Then Throw New Exception(db.ErrDesc)
+
+                    ' Update AccAss
+
+                    Dim SQL As String = ""
+
+                    SQL = SQL & " Declare @P_AsAt smalldatetime"
+                    SQL = SQL & " Declare @P_PolicyNo varchar(50)"
+                    SQL = SQL & " Declare @P_ID varchar(10)"
+                    SQL = SQL & " Declare @P_TOC varchar(10)"
+                    SQL = SQL & " Declare @P_Type varchar(10)"
+                    SQL = SQL & " Declare @P_Currency varchar(10)"
+                    SQL = SQL & " Declare @P_RefNo varchar(50)"
+                    SQL = SQL & " Declare @P_ISType varchar(1)"
+                    SQL = SQL & " Declare @P_PolicyType varchar(10)"
+                    SQL = SQL & " Declare @P_AType varchar(1)"
+                    SQL = SQL & " Declare @P_EMethod varchar(1)"
+                    SQL = SQL & " Declare @P_NoRefundF int"
+                    SQL = SQL & " Declare @P_Branch varchar(10)"
+                    SQL = SQL & " Declare @P_CT varchar(10)"
+                    SQL = SQL & " Declare @P_SMonth Int"
+                    SQL = SQL & " Declare @P_SYear Int"
+                    SQL = SQL & " Declare @P_EMonth Int"
+                    SQL = SQL & " Declare @P_EYear Int"
+                    SQL = SQL & " Declare @P_MinACNO int"
+                    SQL = SQL & " Declare @P_MaxACNO int"
+                    SQL = SQL & " Declare @P_AdmNo int"
+                    SQL = SQL & " "
+
+                    SQL = SQL & " Select @P_AsAt='" & Format(AsAt, "MM/DD/YYYY") & "'"
+                    SQL = SQL & " Select @P_PolicyNo='" & pPolicyNo & "'"
+                    SQL = SQL & " Select @P_ID='" & PID & "'"
+                    SQL = SQL & " Select @P_TOC='" & PCode & "'"
+                    SQL = SQL & " Select @P_Type='" & PType & "'"
+                    SQL = SQL & " Select @P_Currency='" & pCCY & "'"
+                    SQL = SQL & " Select @P_RefNo='" & PRefNo & "'"
+                    SQL = SQL & " Select @P_ISType='" & ISType & "'"
+                    SQL = SQL & " Select @P_PolicyType='" & PolicyType & "'"
+                    SQL = SQL & " Select @P_AType='" & AType & "'"
+                    SQL = SQL & " Select @P_EMethod='" & EMethod & "'"
+                    SQL = SQL & " Select @P_NoRefundF=" & NoRefundF
+                    SQL = SQL & " Select @P_Branch='" & pBranch & "'"
+                    SQL = SQL & " Select @P_CT='" & pCT & "'"
+                    SQL = SQL & " Select @P_SMonth=" & SMonth
+                    SQL = SQL & " Select @P_SYear=" & SYear
+                    SQL = SQL & " Select @P_EMonth=" & EMonth
+                    SQL = SQL & " Select @P_EYear=" & EYear
+                    SQL = SQL & " Select @P_MinACNO=" & minAcNo
+                    SQL = SQL & " Select @P_MaxACNO=" & maxAcNo
+                    SQL = SQL & " Select @P_AdmNo=" & AdmNo
+
+
+                    SQL = SQL & " Update A1 Set AdmNo=@P_AdmNo, Posted=1"
+                    SQL = SQL & " from AccAss A1"
+                    SQL = SQL & " Inner Join Acceptance A2 on (A2.ANO=A1.ANO)          "
+                    SQL = SQL & " Inner Join Cover C on (C.CNO=A2.CNO)  "
+                    SQL = SQL & " Where A1.Posted = 0 and A2.ADate<=@P_AsAt"
+                    SQL = SQL & " and A1.PolicyNo=@P_PolicyNo"
+                    SQL = SQL & " and A1.ID=@P_ID"
+                    SQL = SQL & " and A1.TOC=@P_TOC"
+                    SQL = SQL & " and A1.Type=@P_Type"
+                    SQL = SQL & " and A1.Currency=@P_Currency "
+                    SQL = SQL & " and A1.RefNo=@P_RefNo"
+                    SQL = SQL & " and C.ISType=@P_ISType"
+                    SQL = SQL & " and C.PolicyType=@P_PolicyType"
+                    SQL = SQL & " and A2.AType=@P_AType"
+                    SQL = SQL & " and A2.EMethod=@P_EMethod"
+                    SQL = SQL & " and A2.NoRefundF=@P_NoRefundF"
+                    SQL = SQL & " and A2.Branch=@P_Branch"
+                    SQL = SQL & " and A2.CT=@P_CT"
+                    SQL = SQL & " and Month(A1.SDate)=@P_SMonth"
+                    SQL = SQL & " and Year(A1.SDate)=@P_SYear"
+                    SQL = SQL & " and Month(A1.EDate)=@P_EMonth"
+                    SQL = SQL & " and Year(A1.EDate)=@P_EYear"
+                    SQL = SQL & " and A1.AcNO between @P_MinACNO and @P_MaxACNO "
+                    rs.MoveNext()
+                Loop
+                rsAdm.CloseRemoteSet()
+            End If
+
+            rs.CloseRemoteSet()
+
+            If LockedKey <> "" Then
+                If Not db.ReleaseLockedObject(LockedKey) Then Throw New Exception(db.ErrDesc)
+            End If
+            Generate_Admlink_Premium = True
+
+        Catch ex As Exception
+            StrMsg = ex.Message
+            Generate_Admlink_Premium = False
+        End Try
+        Exit Function
+    End Function
+
+    Private Function Generate_Voucher(AsAt As Date, COB As String) As Boolean
+        Try
+            Dim i As Integer
+            Dim rs As RemoteSet
+            Dim rsAdmNo As RemoteSet
+            Dim Amount(20) As Double
+
+            Dim Nominal As Double
+            Dim diff As Double
+            Dim UseTempVoucherF As Boolean
+            Dim CheckMonthlyExchangeRateF As Boolean
+            Dim CheckWeeklyExchangeRateF As Boolean
+            Dim UseExchRateOnLossDate As Boolean
+            Dim sAdmNo As String
+            Dim Rate As Double
+
+            Dim LockedKey As String = ""
+            LockedKey = "Generate_Voucher_" & COB
+            If Not db.GetLockedObject(LockedKey) Then Throw New Exception(db.ErrDesc)
+
+            rs = db.OpenRemoteSet("Select UseTempVoucherF, UseExchRateOnLossDate, CheckMonthlyExchangeRateF, CheckWeeklyExchangeRateF from SysTab", adOpenForwardonly)
+            UseTempVoucherF = toval(rs.fields("UseTempVoucherF"))
+            CheckMonthlyExchangeRateF = toval(rs.fields("CheckMonthlyExchangeRateF"))
+            CheckWeeklyExchangeRateF = toval(rs.fields("CheckWeeklyExchangeRateF"))
+            UseExchRateOnLossDate = toval(rs.fields("UseExchRateOnLossDate"))
+
+            rsAdmNo = db.OpenQueryDef("QGenerate_Voucher", adOpenKeyset, AsAt, COB)
+            Do While Not rsAdmNo.Eof
+
+                sAdmNo = "(" & tostr(rsAdmNo.fields("AdmNoList")) & ")"
+
+
+                Dim startI As Integer = 0
+                Dim LastI As Integer = 1
+                Dim strHint As String = ""
+
+                Nominal = 0
+                diff = 0
+                For i = 1 To 20
+                    Amount(i - 1) = toval(rsAdmNo.fields("Amount_" & i))
+                    If Amount(i - 1) > 0 Then
+                        Nominal = Nominal + Amount(i - 1)
+                    ElseIf Amount(i - 1) < 0 Then
+                        diff = diff - Amount(i - 1)
+                    End If
+                    If Amount(i - 1) <> 0 Then
+                        If strHint = "" Then
+                            strHint = tostr(-i)
+                        Else
+                            strHint = strHint & "," & tostr(-i)
+                        End If
+
+                        If startI = 0 Then startI = i
+                        LastI = i
+                    End If
+                Next i
+
+                If strHint = "" OrElse (Round(Nominal, 4) = 0 AndAlso Round(diff, 4) = 0 AndAlso Not toval(rsAdmNo.fields("TaxTableF"))) Then
+                    ' Write Off
+                    If Not db.Execute("Update ADMLINK Set WriteF=1 Where VoucherF=0 and AdmNo in " & sAdmNo) Then Throw New Exception(db.ErrDesc)
+                Else
+                    Dim NumRec As Integer
+                    Dim TaxType As String
+                    Dim SL_Cat As String
+                    Dim ID As String
+                    Dim PShortName As String
+                    Dim CCY As String
+                    Dim CT As String
+                    Dim Branch As String
+                    Dim RefNo As String
+                    Dim DocNo As String
+                    Dim ComAcc As String
+                    Dim VAT As Double
+                    Dim TAX As Double
+                    Dim VoucherDate As Date
+                    Dim RefCCYDate As Date
+                    Dim BillDate As Date
+
+                    ' Instalment Information
+                    Dim Installment As Long
+                    Dim AmountDue(24) As Double
+                    Dim DueDate(24) As Date
+
+                    Dim sign As Integer
+                    Dim Preference As String
+                    Dim Remarks As String
+                    Dim Voucher As String
+                    Dim AccountNo As String
+                    Dim Bank As String
+                    Dim BankBranch As String
+                    Dim BankAccount As String
+                    Dim BankName As String
+                    Dim RefType As String
+                    Dim Subject As String
+                    Dim ISType As String
+                    Dim VatF As Boolean
+                    Dim TaxF As Boolean
+                    Dim Extra_1 As String
+                    Dim Extra_2 As String
+                    Dim Extra_3 As String
+                    Dim Extra_4 As String
+                    Dim Extra_5 As String
+                    Dim Extra_6 As String
+                    Dim LAmount As Double
+
+                    SL_Cat = "N"
+                    NumRec = toval(rsAdmNo.fields("NumRec"))
+                    ID = tostr(rsAdmNo.fields("ID"))
+                    PShortName = tostr(rsAdmNo.fields("PShortName"))
+                    CCY = tostr(rsAdmNo.fields("Currency"))
+                    CT = tostr(rsAdmNo.fields("CT"))
+                    Branch = tostr(rsAdmNo.fields("Branch"))
+                    RefNo = tostr(rsAdmNo.fields("RefNo"))
+                    DocNo = tostr(rsAdmNo.fields("DocNo"))
+                    ComAcc = tostr(rsAdmNo.fields("ComAcc"))
+                    TaxType = tostr(rsAdmNo.fields("TaxType"))
+                    VoucherDate = todate(rsAdmNo.fields("Date"))
+                    BillDate = todate(rsAdmNo.fields("BillDate"))
+                    Installment = toval(rsAdmNo.fields("Installment"))
+                    Remarks = tostr(rsAdmNo.fields("Remarks"))
+                    Voucher = tostr(rsAdmNo.fields("Voucher"))
+                    AccountNo = tostr(rsAdmNo.fields("AccountNo"))
+                    Bank = tostr(rsAdmNo.fields("Bank"))
+                    BankBranch = tostr(rsAdmNo.fields("BankBranch"))
+                    BankAccount = tostr(rsAdmNo.fields("BankAccount"))
+                    BankName = tostr(rsAdmNo.fields("BankName"))
+                    RefType = tostr(rsAdmNo.fields("RefType"))
+                    Subject = tostr(rsAdmNo.fields("Subject"))
+                    ISType = tostr(rsAdmNo.fields("ISType"))
+                    Extra_1 = tostr(rsAdmNo.fields("Extra_1"))
+                    Extra_2 = tostr(rsAdmNo.fields("Extra_2"))
+                    Extra_3 = tostr(rsAdmNo.fields("Extra_3"))
+                    Extra_4 = tostr(rsAdmNo.fields("Extra_4"))
+                    Extra_5 = tostr(rsAdmNo.fields("Extra_5"))
+                    Extra_6 = tostr(rsAdmNo.fields("Extra_6"))
+                    LAmount = toval(rsAdmNo.fields("LAmount"))
+                    If Subject.ToUpper = "CLAIM" Then
+                        VAT = toval(Amount(12)) ' 13
+                        TAX = toval(Amount(13)) + toval(Amount(17)) ' 14 + 18
+                    Else
+                        VAT = toval(Amount(12)) + toval(Amount(16)) + toval(Amount(17)) ' 13 + 17 + 18
+                        TAX = toval(Amount(13)) ' 14
+                    End If
+
+                    If Extra_1 = "" AndAlso Subject.ToUpper = "CLAIM" AndAlso UseExchRateOnLossDate = True Then
+                        RefCCYDate = DateSerial(Mid(Extra_2, 1, 4), Mid(Extra_2, 6, 2), Mid(Extra_2, 9, 2))
+                    Else
+                        RefCCYDate = VoucherDate
+                    End If
+
+                    VatF = VAT <> 0
+                    TaxF = TAX <> 0 Or (toval(rsAdmNo.fields("PNominal_Tax")) <> 0 And toval(rsAdmNo.fields("TaxF")) And toval(rsAdmNo.fields("TaxRate")) <> 0) Or (toval(rsAdmNo.fields("TaxTableF")))
+
+                    If TaxType = "" And TAX <> 0 Then
+                        StrMsg = "Please Check the Tax Type for Profile '" & ID & "' !"
+                        Throw New Exception(StrMsg)
+                    End If
+
+                    Dim LockedDate As Date
+                    Dim BLLocked As Integer
+                    LockedDate = GetLockedDate(Branch)
+                    BLLocked = GetUserBLLocked(db_user)
+
+                    If (DateDiff(DateInterval.Day, LockedDate, VoucherDate) <= 0 And (DateDiff(DateInterval.Day, LockedDate, Today.Date) > BLLocked Or BLLocked = 0)) Then
+                        StrMsg = "Please Check The Transaction Closing Period (Locked Date) !"
+                        Throw New Exception(StrMsg)
+                    End If
+
+                    For i = 1 To Installment
+                        AmountDue(i) = toval(rsAdmNo.fields("AmountDue_" & i))
+                        DueDate(i) = todate(rsAdmNo.fields("DueDate_" & i))
+                    Next i
+
+                    If Nominal - diff >= 0 Then
+                        sign = 1
+                    Else
+                        sign = -1
+                    End If
+
+                    Preference = tostr(rsAdmNo.fields("Type") & "-" & rsAdmNo.fields("Code")) & "-" & ISType
+                    If Subject.ToUpper = "PREMIUM" Then
+                        If Extra_4 = "Cancellation" Or Extra_4 = "Reinstatement" Then
+                            Preference = Preference & "-C"
+                        Else
+                            Preference = Preference & "-?"
+                        End If
+                    ElseIf Subject.ToUpper = "CLAIM" Then
+                        If Extra_3 = "CASH CALL" Then
+                            Preference = Preference & "-C"
+                        ElseIf Extra_5 = "Ex-Gratia" Then
+                            Preference = Preference & "-X"
+                        ElseIf Extra_6 <> "" Then
+                            Preference = Preference & "-" & Extra_6
+                        Else
+                            Preference = Preference & "-?"
+                        End If
+                    End If
+                    If tostr(rsAdmNo.fields("CGroup")) <> "" Then
+                        Preference = Preference & "-" & tostr(rsAdmNo.fields("CGroup"))
+                    End If
+
+                    If sign >= 0 Then
+                        rs = db.OpenRemoteSet("SELECT Top 1 VType.vType, VType.Description, VType.AutoNum, VType.DebtorF, VType.CreditorF From VType WHERE TaxF=0 and VatF=0 and '" & TaxType & "' Like VType.TaxType+'%' and '" & Preference & "' like VType.Code+'%' and VType.SL_Cat='" & SL_Cat & "' and VType.DebtorF=1 and (VType.CodeExt='" & Subject & "' or VType.CodeExt='') Order by VType.CodeExt Desc, Len(VType.Code) Desc, difference('" & Preference & "',VType.Code) Desc")
+                    Else
+                        rs = db.OpenRemoteSet("SELECT Top 1 VType.vType, VType.Description, VType.AutoNum, VType.DebtorF, VType.CreditorF From VType WHERE TaxF=0 and VatF=0 and '" & TaxType & "' Like VType.TaxType+'%' and '" & Preference & "' like VType.Code+'%' and VType.SL_Cat='" & SL_Cat & "' and VType.CreditorF=1 and (VType.CodeExt='" & Subject & "' or VType.CodeExt='') Order by VType.CodeExt Desc, Len(VType.Code) Desc, difference('" & Preference & "',VType.Code) Desc")
+                    End If
+                    If rs.Eof Then
+                        StrMsg = "No Voucher Type for Preference : " & Preference & " !"
+                        Throw New Exception(StrMsg)
+                    End If
+                    Dim Vtype As String
+                    Dim CreditorF As Boolean
+                    Dim DebtorF As Boolean
+                    Dim AutoNum As String
+                    Dim SQL As String
+
+                    Vtype = tostr(rs.fields("VType"))
+                    CreditorF = toval(rs.fields("CreditorF"))
+                    DebtorF = toval(rs.fields("DebtorF"))
+                    AutoNum = tostr(rs.fields("AutoNum"))
+
+                    If Subject.ToUpper = "PREMIUM" Then
+                        SQL = "SELECT Top 1 ProAcc, Description, [Currency], RESTRICTEDF From ProAcc WHERE ID='" & ID & "' and [Currency]='" & CCY & "' and coalesce(Purpose,'') in ('','Premium') "
+                    ElseIf Subject.ToUpper = "CLAIM" Then
+                        SQL = "SELECT Top 1 ProAcc, Description, [Currency], RESTRICTEDF From ProAcc WHERE ID='" & ID & "' and [Currency]='" & CCY & "' and coalesce(Purpose,'') in ('','Claim') "
+                    Else
+                        SQL = "SELECT Top 1 ProAcc, Description, [Currency], RESTRICTEDF From ProAcc WHERE ID='" & ID & "' and [Currency]='" & CCY & "' and coalesce(Purpose,'') in ('','Others') "
+                    End If
+                    If PShortName <> "" Then
+                        SQL = SQL & " and (ProAcc.PShortName='' or ProAcc.PShortName='" & PShortName & "')"
+                        SQL = SQL & " order by ProAcc.RESTRICTEDF, ProAcc.PShortName Desc"
+                    Else
+                        SQL = SQL & " order by ProAcc.RESTRICTEDF, ProAcc.PShortName"
+                    End If
+                    rs = db.OpenRemoteSet(SQL)
+                    If rs.Eof Then
+                        If Not Create_Proacc(ID, CCY) Then
+                            StrMsg = "Can't Create Profile Account for Profile ID " & ID & " !" & vbCrLf
+                            Throw New Exception(StrMsg)
+                        End If
+                        rs = db.OpenRemoteSet("SELECT Top 1 ProAcc, Description, [Currency], RESTRICTEDF From ProAcc WHERE ProAcc.ID='" & ID & "' and [Currency]='" & CCY & "' order by RESTRICTEDF")
+                    End If
+
+                    If rs.Eof Then
+                        StrMsg = "Profile Account Not Found for Profile ID " & ID & " !"
+                        Throw New Exception(StrMsg)
+                    ElseIf toval(rs.fields("RESTRICTEDF")) Then
+                        StrMsg = "Restricted Profile Account for Profile ID " & ID & " !"
+                        Throw New Exception(StrMsg)
+                    End If
+
+                    Dim ProAcc As String
+                    ProAcc = tostr(rs.fields("ProAcc"))
+
+                    If Voucher = "" Then Voucher = db.GetNextDocNo(AutoNum, VoucherDate, Branch)
+                    If Voucher = "" Then
+                        StrMsg = "Generate Voucher No. Failed !"
+                        Throw New Exception(StrMsg)
+                    End If
+                    Dim DataMaster As RemoteSet
+                    If Not UseTempVoucherF Then
+                        DataMaster = db.OpenRemoteSet("Select * from nVoucher Where 1<>1")
+                    Else
+                        DataMaster = db.OpenRemoteSet("Select * from tVoucher Where 1<>1")
+                    End If
+                    DataMaster.AddNew()
+                    DataMaster.fields("Voucher") = Voucher
+                    DataMaster.fields("VType") = Vtype
+                    DataMaster.fields("Date") = VoucherDate
+                    DataMaster.fields("RefCCYDate") = RefCCYDate
+                    DataMaster.fields("DueDate") = BillDate
+                    DataMaster.fields("CT") = CT
+                    DataMaster.fields("ProAcc") = ProAcc
+                    DataMaster.fields("Currency") = CCY
+                    DataMaster.fields("CreditorF") = IIf(CreditorF = True, 1, 0)
+                    DataMaster.fields("DebtorF") = IIf(DebtorF = True, 1, 0)
+                    DataMaster.fields("SL_Flag") = True
+                    DataMaster.fields("Currency") = CCY
+                    DataMaster.fields("TaxF") = TaxF
+                    DataMaster.fields("VatF") = VatF
+                    DataMaster.fields("Vat_CC") = toval(VAT) * sign
+                    DataMaster.fields("Tax_CC") = toval(TAX) * sign
+                    DataMaster.fields("TaxType") = TaxType
+                    DataMaster.fields("Branch") = Branch
+                    DataMaster.fields("SL_Cat") = SL_Cat
+                    DataMaster.fields("RefNo") = RefNo
+                    DataMaster.fields("DocNo") = DocNo
+                    DataMaster.fields("ComAcc") = ComAcc
+                    DataMaster.fields("Remarks") = Remarks
+                    DataMaster.fields("Bank") = Bank
+                    DataMaster.fields("BankBranch") = BankBranch
+                    DataMaster.fields("AccountNo") = AccountNo
+                    DataMaster.fields("BankAccount") = BankAccount
+                    DataMaster.fields("BankName") = BankName
+                    DataMaster.fields("RefType") = RefType
+                    DataMaster.fields("Installment") = Installment
+                    DataMaster.fields("Num_Doc") = 0
+                    DataMaster.fields("SL_Tag") = 0
+                    DataMaster.fields("AssetF") = 0
+                    DataMaster.fields("InvestmentF") = 0
+                    DataMaster.fields("SourceF") = 0
+                    DataMaster.fields("BranchF") = 0
+                    DataMaster.fields("ParentF") = 0
+                    DataMaster.fields("ChequeF") = 0
+
+                    Dim j As Integer
+                    Dim TAmountDue As Double
+                    Dim TAmountUnDue As Double
+                    TAmountDue = 0
+                    TAmountUnDue = 0
+                    If Installment <> 0 Then
+                        j = 1
+                        For i = 1 To Installment
+                            DataMaster.fields("AmountDue_" & i) = toval(AmountDue(i)) * sign
+                            DataMaster.fields("DueDate_" & i) = DueDate(i)
+                            If DateDiff(DateInterval.Day, BillDate, DataMaster.fields("DueDate_" & i)) <= 0 Then
+                                j = i
+                            End If
+                        Next i
+                        DataMaster.fields("MDueDate") = DueDate(i - 1)
+                        For i = 1 To j
+                            TAmountDue = TAmountDue + AmountDue(i) * sign
+                        Next i
+                        TAmountUnDue = toval(IIf(sign > 0, Nominal, diff)) - toval(IIf(sign > 0, diff, Nominal)) - TAmountDue
+                    Else
+                        DataMaster.fields("MDueDate") = todate(DataMaster.fields("DueDate"))
+                        TAmountDue = toval(IIf(sign > 0, Nominal, diff)) - toval(IIf(sign > 0, diff, Nominal))
+                        TAmountUnDue = 0
+                    End If
+
+                    DataMaster.fields("PDate") = VoucherDate
+                    DataMaster.fields("CDate") = Today.Date
+                    DataMaster.fields("CTime") = Time()
+                    DataMaster.fields("UserID") = db_user
+                    DataMaster.fields("Last_Date") = Today.Date
+                    DataMaster.fields("Last_Time") = Time()
+                    DataMaster.fields("Last_Opr") = db_user
+                    DataMaster.fields("nPayment") = 0
+                    DataMaster.fields("Payment_CC") = 0
+                    DataMaster.fields("Payment_OC") = 0
+                    DataMaster.fields("TaxPayment_CC") = 0
+                    DataMaster.fields("TaxPayment_OC") = 0
+                    DataMaster.fields("NDueDate") = BillDate
+                    DataMaster.fields("CInstallment") = 1
+                    DataMaster.fields("AmountDue") = TAmountDue
+                    DataMaster.fields("AmountUnDue") = TAmountUnDue
+                    DataMaster.fields("LAmount") = LAmount * sign
+
+                    Dim Br_End_Date As Date
+                    Dim BackDatedDate As Date
+                    Dim BackDatedF As Boolean
+                    rs = db.OpenRemoteSet("Select B.end_date, B.BackDatedDate, S.BackDatedF from Branch B, SysUser S Where S.ID='" & db_user & "' and B.Branch='" & Branch & "'")
+                    Br_End_Date = todate(rs.fields("end_date"))
+                    BackDatedDate = todate(rs.fields("BackDatedDate"))
+                    BackDatedF = toval(rs.fields("BackDatedF"))
+                    If (DateDiff(DateInterval.Day, VoucherDate, Br_End_Date) >= 0) Then
+                        If BackDatedF And DateDiff(DateInterval.Day, VoucherDate, BackDatedDate) >= 0 Then
+                            DataMaster.fields("BackDatedF") = True
+                            DataMaster.fields("Posting_Flag") = True
+                            DataMaster.fields("Status") = "P"
+                        Else
+                            ' Can't Backdated
+                            StrMsg = "Please Check The Last Ending Posting Date !"
+                            Throw New Exception(StrMsg)
+                        End If
+                    Else
+                        DataMaster.fields("BackDatedF") = False
+                        DataMaster.fields("Posting_Flag") = False
+                        DataMaster.fields("Status") = "U"
+                    End If
+
+                    If Not toval(DataMaster.fields("BackDatedF")) Then
+                        If CheckWeeklyExchangeRateF Then
+                            If Not Check_Weekly_Exchange_Rate(CCY, VoucherDate) Then
+                                StrMsg = "Please Check The Weekly Exchange Rate : '" & CCY & "' Currency in '" & Format(VoucherDate, "mmm-yyyy") & "' !"
+                                Throw New Exception(StrMsg)
+                            End If
+                        Else
+                            If CheckMonthlyExchangeRateF Then
+                                If Not Check_Monthly_Exchange_Rate(CCY, VoucherDate) Then
+                                    StrMsg = "Please Check The Monthly Exchange Rate : '" & CCY & "' Currency in '" & Format(VoucherDate, "mmm-yyyy") & "' !"
+                                    Throw New Exception(StrMsg)
+                                End If
+                            End If
+                        End If
+                    End If
+
+                    Rate = exchange_rate(CCY, RefCCYDate)
+
+                    If Rate = 0 Then
+                        StrMsg = "No Exchange Rate for Currency " & CCY & " !"
+                        Throw New Exception(StrMsg)
+                    End If
+
+                    DataMaster.fields("Rate") = Rate
+
+                    Dim Rate_RC As Double = 0
+                    Rate_RC = exchange_rate_RC(CCY, RefCCYDate)
+                    DataMaster.fields("Rate_RC") = Rate_RC
+
+                    DataMaster.fields("Nominal_CC") = IIf(sign > 0, Nominal, diff)
+                    DataMaster.fields("Diff_CC") = IIf(sign > 0, diff, Nominal)
+                    DataMaster.fields("Nominal") = IIf(sign > 0, Nominal, diff) * Rate
+                    DataMaster.fields("Diff") = IIf(sign > 0, diff, Nominal) * Rate
+
+                    Dim rsHint As RemoteSet
+                    Dim Account As String = ""
+                    If Not UseTempVoucherF Then
+                        rs = db.OpenRemoteSet("Select * from nSL Where 1<>1")
+                    Else
+                        rs = db.OpenRemoteSet("Select * from tSL Where 1<>1")
+                    End If
+
+                    If DebtorF Then
+                        rsHint = db.OpenRemoteSet("Select H.Hint, H.ShortDesc, H.Remarks, H.ShortDesc_1, H.Remarks_1, A.Account from Hint H Outer Apply (Select A.Account from vPattern V Inner Join Account A on (A.Account=V.Account and A.Open_ItemF=1) Where (V.VType='" & Vtype & "' and V.Debit=H.Hint) ) A Where H.Hint in (" & strHint & ")")
+                    Else
+                        rsHint = db.OpenRemoteSet("Select H.Hint, H.ShortDesc, H.Remarks, H.ShortDesc_1, H.Remarks_1, A.Account from Hint H Outer Apply (Select A.Account from vPattern V Inner Join Account A on (A.Account=V.Account and A.Open_ItemF=1) Where (V.VType='" & Vtype & "' and V.Credit=H.Hint) ) A Where H.Hint in (" & strHint & ")")
+                    End If
+                    Dim dv As DataView
+                    dv = New DataView(rsHint.GetDataSet.Tables(0))
+
+                    For i = startI To LastI
+                        If toval(Amount(i - 1)) <> 0 AndAlso i <> 11 AndAlso i <> 12 Then ' Payment Difference Skip
+                            dv.RowFilter = "Hint=" & tostr(-i)
+                            If dv.ToTable.Rows.Count = 0 OrElse tostr(dv.ToTable.Rows(0)("Account")) = "" Then
+                                StrMsg = "No Hint Preference -" & i & " ! for VType : '" & Vtype & "'"
+                                Throw New Exception(StrMsg)
+                            End If
+                            If Account = "" Then Account = tostr(dv.ToTable.Rows(0)("Account"))
+                            Exit For
+                        End If
+                    Next
+
+                    For i = startI To LastI
+                        If toval(Amount(i - 1)) <> 0 Then
+                            dv.RowFilter = "Hint=" & tostr(-i)
+
+                            If dv.ToTable.Rows.Count = 0 OrElse tostr(dv.ToTable.Rows(0)("Account")) = "" Then
+                                StrMsg = "No Hint Preference -" & i & " ! for VType : '" & Vtype & "'"
+                                Throw New Exception(StrMsg)
+                            End If
+
+                            Dim ShortDesc As String
+                            Dim Description As String
+
+                            If Subject.ToUpper = "PREMIUM" Then
+                                ShortDesc = dv.ToTable.Rows(0)("ShortDesc")
+                                Description = dv.ToTable.Rows(0)("Remarks")
+                            Else
+                                ShortDesc = dv.ToTable.Rows(0)("ShortDesc_1")
+                                Description = dv.ToTable.Rows(0)("Remarks_1")
+                            End If
+
+                            rs.AddNew()
+                            rs.fields("Voucher") = Voucher
+                            rs.fields("Doc_No") = ShortDesc
+                            rs.fields("Doc_Date") = VoucherDate
+                            rs.fields("Doc_Ccy") = CCY
+                            rs.fields("Nominal_OC") = Amount(i - 1) * sign
+                            rs.fields("Rate") = 1
+                            rs.fields("Nominator") = 1
+                            rs.fields("Denominator") = 1
+                            rs.fields("Nominal") = Amount(i - 1) * sign
+                            rs.fields("Remarks") = Description
+                            rs.fields("Account") = Account
+                            rs.fields("Hint") = -i
+                            If Not rs.UpdateRow() Then Throw New Exception(db.ErrDesc)
+                        End If
+                    Next i
+
+                    If Account = "" AndAlso rs.RecordCount <> 0 Then
+                        StrMsg = "No Open Item Account !"
+                        Throw New Exception(StrMsg)
+                    End If
+
+                    ' Update Admlink Status
+                    If Not db.Execute("Update ADMLINK Set VoucherF=1, Voucher='" & Voucher & "' Where VoucherF=0 and WriteF=0 and AdmNo in " & sAdmNo) Then Throw New Exception(db.ErrDesc)
+                    If db.RecordsAffected <> NumRec Then
+                        StrMsg = "Incorect Number of Record Updated !"
+                        Throw New Exception(StrMsg)
+                    End If
+
+                    ' Finally
+                    If Not DataMaster.Update() Then Throw New Exception(db.ErrDesc)
+                    DataMaster.CloseRemoteSet()
+
+                    If Not rs.Update() Then Throw New Exception(db.ErrDesc)
+                    rs.CloseRemoteSet()
+
+                    If ComAcc <> "" AndAlso toval(DataMaster.fields("DebtorF")) Then
+                        rs = db.OpenRemoteSet("Select * from ARBucket Where 1<>1")
+                        rs.AddNew()
+                        rs.fields("Voucher") = DataMaster.fields("Voucher")
+                        rs.fields("AmountPaid") = DataMaster.fields("Nominal_CC") - DataMaster.fields("Diff_CC")
+                        rs.fields("ComAcc") = ComAcc
+                        If Not rs.Update Then Throw New Exception(db.ErrDesc)
+                    End If
+                End If
+                rsAdmNo.MoveNext()
+            Loop
+
+            If LockedKey <> "" Then
+                If Not db.ReleaseLockedObject(LockedKey) Then Throw New Exception(db.ErrDesc)
+            End If
+
+            Generate_Voucher = True
+        Catch ex As Exception
+            StrMsg = ex.Message
+            Generate_Voucher = False
+        End Try
     End Function
     Private Function GetPNominalVat_ByRisk(ByVal AdmNo As Long) As Double
         Dim rs As RemoteSet
